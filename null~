@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <left-data-source class="cdc.impl.datasource.text.CSVDataSource" name="sourceA">
+        <params>
+            <param name="column-separator" value=","/>
+            <param name="source-name" value="sourceA"/>
+            <param name="input-file" value="D:\Work\String_Match\File1.csv"/>
+        </params>
+        <row-model>
+            <column column="Name"
+                converter="cdc.datamodel.converters.DummyConverter" name="Name">
+                <empty-values/>
+            </column>
+            <column column="Number"
+                converter="cdc.datamodel.converters.DummyConverter" name="Number">
+                <empty-values/>
+            </column>
+        </row-model>
+    </left-data-source>
+    <right-data-source class="cdc.impl.datasource.text.CSVDataSource" name="sourceB">
+        <params>
+            <param name="column-separator" value=","/>
+            <param name="source-name" value="sourceB"/>
+            <param name="input-file" value="D:\Work\String_Match\File2.csv"/>
+        </params>
+        <row-model>
+            <column column="Name"
+                converter="cdc.datamodel.converters.DummyConverter" name="Name">
+                <empty-values/>
+            </column>
+            <column column="Number"
+                converter="cdc.datamodel.converters.DummyConverter" name="Number">
+                <empty-values/>
+            </column>
+        </row-model>
+    </right-data-source>
+    <join class="cdc.impl.join.snm.SNMJoin_v1" summary-left="false" summary-right="false">
+        <params>
+            <param name="window" value="8"/>
+            <param name="sort-order-right" value="Name"/>
+            <param name="sort-order-left" value="Name"/>
+        </params>
+        <join-condition class="cdc.impl.conditions.WeightedJoinCondition">
+            <params>
+                <param name="acceptance-level" value="70"/>
+            </params>
+            <condition class="cdc.impl.distance.EditDistance"
+                left-column="Name" right-column="Name" weight="100">
+                <params>
+                    <param name="match-level-start" value="0.2"/>
+                    <param name="math-level-end" value="0.4"/>
+                </params>
+            </condition>
+        </join-condition>
+        <row-model>
+            <column name="Name" source="sourceA"/>
+            <column name="Number" source="sourceA"/>
+            <column name="Name" source="sourceB"/>
+            <column name="Number" source="sourceB"/>
+        </row-model>
+    </join>
+    <results-savers>
+        <results-saver class="cdc.impl.resultsavers.DeduplicatingResultsSaver">
+            <params>
+                <param name="deduplication" value="right"/>
+                <param name="delete-duplicates" value="ask"/>
+            </params>
+            <savers>
+                <results-saver class="cdc.impl.resultsavers.CSVFileSaver">
+                    <params>
+                        <param name="encoding" value="UTF-8"/>
+                        <param name="output-file" value="results.csv"/>
+                    </params>
+                </results-saver>
+            </savers>
+        </results-saver>
+    </results-savers>
+</configuration>
