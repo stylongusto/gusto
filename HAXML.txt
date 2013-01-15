@@ -1,0 +1,95 @@
+Exploring XML Using Haskell
+I am trying to learn how to process XML using Haskell and I haven't found any "Hello World" tutorials on how to just access various nodes and attributes of an XML document using HaXml.
+
+The following is a transcript of a ghci session I had tonight (minus a handful of bloopers).
+
+I'm not a Haskell expert so expect less than stellar Haskell code. My main purpose for writing this is to give others a jumping off point into HaXml.
+
+First I started ghci:
+tim@laptop:~$ ghci
+GHCi, version 6.10.1: http://www.haskell.org/ghc/ :? for help
+Then I declared a String that held my XML document text (formatted to fit your screen):
+Prelude> let xmlText = "<?xml version=\"1.0\"?><order>
+<part number="\">Hammer</part>
+<part number="\">Nail</part>
+</order>"
+Before I can parse the XML, I'll need to import some of HaXml's libraries. The :m +
+command will do that for us:
+Prelude> :m +Text.XML.HaXml
+Prelude Text.XML.HaXml> :m +Text.XML.HaXml.Parse
+Now I can parse the XML and extract just the root of the document:
+Prelude Text.XML.HaXml Text.XML.HaXml.Parse> let (Document _ _ root _) = xmlParse "(No Document)" xmlText
+Actually, no parsing has taken place yet. xmlParse is lazy and will only parse the XML text when necessary.
+
+The first argument to xmlParse is "(No Document)". That's just a dummy value that's used by HaXml for error reporting purposes. If I had parsed XML from a file, I would have substituted the file name for the dummy value.
+
+Let's see what type the root has:
+Prelude Text.XML.HaXml Text.XML.HaXml.Parse> :t root
+root :: Element Text.XML.HaXml.Posn.Posn
+The combinators I'll be using expect a Content value not an Element. So let's create a Content value from this Element. But first we need to load another module:
+Prelude Text.XML.HaXml Text.XML.HaXml.Parse> :m +Text.XML.HaXml.Posn
+Having all these modules in the prompt is getting annoying. Let's remove them:
+Prelude Text.XML.HaXml Text.XML.HaXml.Parse Text.XML.HaXml.Posn> :set prompt "> "
+Now our prompt will just be the > character followed by a space.
+
+And now we can wrap the Element value in a Content value:
+> let rootElem = CElem root noPos
+> :t rootElem
+rootElem :: Content Posn
+To select nodes in the XML tree we can use the tag function:
+> :t tag
+tag :: String -> Content i -> [Content i]
+It takes a String and a Content value (our document root) and returns potentially multiple Content values (each node whose tag name matched the supplied String).
+
+Let's see the type of value we get when we supply tag with a String:
+> :t tag "order"
+tag "order" :: Content i -> [Content i]
+No surprise there if you're familiar with currying.
+
+And let's see the type of the value returned from tag when both a String and a Content value are supplied:
+> :t tag "order" rootElem
+tag "order" rootElem :: [Content Posn]
+How many element names matched "order"?
+> length $ tag "order" rootElem
+1
+You can search for tags within tags using the /> function. Notice that the chained functions below have the same type as the tag function:
+> :t tag "order" /> tag "part"
+tag "order" /> tag "part" :: Content i -> [Content i]
+Let's search for "part" tags within the "order" tag and see how many nodes we get (it should be 2 because we have 2 orders in our XML text):
+> length $ tag "order" /> tag "part" $ rootElem
+2
+Let's grab just the first "part" element and examine its type:
+> let firstPart = (tag "order" /> tag "part" $ rootElem) !! 0
+> :t firstPart
+firstPart :: Content Posn
+Great. We now have a single XML element in firstPart.
+
+Let's poke around the internals of firstPart. To do that we'll pattern match on firstPart:
+> let (CElem (Elem name attributes _) _) = firstPart
+Now we can look at the part elements tag name:
+> name
+"part"
+And see how the attributes are stored:
+> :t attributes
+attributes :: [Attribute]
+That makes sense since an element can have multiple attributes.
+
+We know that this node just has one attribute so let's grab it:
+> let (attrName, _) = attributes !! 0
+> attrName
+"number"
+The second part of an Attribute is an AttValue which is a list of "Either String Reference" values. I'm not sure why this is. I thought that a single attribute could only have one value. Perhaps not?
+
+Let's grab the first attribute's AttValue:
+> let (_, attrValue) = attributes !! 0
+> :t attrValue
+attrValue :: AttValue
+And now we'll grab the list of Either values and store the first one in "firstAttrValue":
+> let (AttValue (firstAttrValue:_)) = attrValue
+> :t firstAttrValue
+firstAttrValue :: Either String Reference
+Now we'll try to access the attribute String:
+> let (Left value) = firstAttrValue
+> value
+"101"
+Sure enough, the first "part" has a part number of "101".
